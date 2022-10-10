@@ -5,10 +5,12 @@ const DeckService = require('../services/DeckService.js');
 const { wrapAsync } = require('../util.js');
 const logger = require('../log.js');
 const ServiceFactory = require('../services/ServiceFactory');
+const GlobalRateLimiterService = require('../services/GlobalRateLimiterService');
 const configService = new ConfigService();
 const cardService = ServiceFactory.cardService(configService);
 
 const deckService = new DeckService(configService);
+const globalRateLimiterService = new GlobalRateLimiterService(configService);
 
 module.exports.init = function (server) {
     server.get(
@@ -96,6 +98,10 @@ module.exports.init = function (server) {
         '/api/decks',
         passport.authenticate('jwt', { session: false }),
         wrapAsync(async function (req, res) {
+            if (!globalRateLimiterService.requestAllowed()) {
+                return res.status(429).send({ success: false, message: 'rate limit' });
+            }
+
             if (!req.body.uuid) {
                 return res.send({ success: false, message: 'uuid must be specified' });
             }

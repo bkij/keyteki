@@ -85,6 +85,16 @@ export default function callAPIMiddleware({ dispatch, getState }) {
                 } catch (innerError) {
                     errorStatus = innerError.status;
                 }
+            } else if (error.status === 429) {
+                dispatch(
+                    Object.assign({}, payload, {
+                        status: errorStatus,
+                        message: 'Too many requests. Please try again in a minute.',
+                        type: Api.ApiFailure,
+                        request: requestType
+                    })
+                );
+                return;
             } else {
                 errorStatus = error.status;
             }
