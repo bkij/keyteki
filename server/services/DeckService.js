@@ -1,7 +1,7 @@
 const logger = require('../log');
 const util = require('../util');
 const db = require('../db');
-const { expand, flatten } = require('../Array');
+const { expand, flatten, partition } = require('../Array');
 
 class DeckService {
     constructor(configService) {
@@ -346,7 +346,7 @@ class DeckService {
 
         try {
             let response = await util.httpRequest(
-                `https://www.keyforgegame.com/api/decks/${deck.uuid}/?links=cards`
+                `https://decksofkeyforge.com/api/theoretical-decks/${deck.uuid}`
             );
 
             if (response[0] === '<') {
@@ -362,11 +362,11 @@ class DeckService {
             throw new Error('Invalid response from Api. Please try again later.');
         }
 
-        if (!deckResponse || !deckResponse._linked || !deckResponse.data) {
+        if (!deckResponse || !deckResponse.deck) {
             throw new Error('Invalid response from Api. Please try again later.');
         }
 
-        let newDeck = this.parseDeckResponse(deck.username, deckResponse);
+        let newDeck = this.parseDeckResponse(deck.username, deckResponse.deck);
 
         let validExpansion = await this.checkValidDeckExpansion(newDeck);
         if (!validExpansion) {
@@ -584,67 +584,30 @@ class DeckService {
         }
     }
 
-    countEnhancements(list, deckCards) {
-        const cards = list.map((c) => deckCards.find((x) => x.id === c)).filter(Boolean);
-        const enhancementRegex = /Enhance (.+?)\./;
-        const EnhancementLookup = {
-            P: 'capture',
-            D: 'damage',
-            R: 'draw',
-            A: 'amber',
-            '\uf565': 'capture',
-            '\uf361': 'damage',
-            '\uf36e': 'draw',
-            '\uf360': 'amber'
+    _withCount(cardList) {
+        const cardsWithCount = {};
+        cardList.forEach((card) => {
+            if (!cardsWithCount[card.cardTitle]) {
+                cardsWithCount[card.cardTitle] = { ...card, count: 1 };
+            } else {
+                cardsWithCount[card.cardTitle]['count'] =
+                    cardsWithCount[card.cardTitle]['count'] + 1;
+            }
+        });
+        return Object.values(cardsWithCount);
+    }
+
+    parseDeckResponse(username, deck) {
+        // Special handling of gigantics due to differences between MV and DoK APIs
+        const giganticCardTitles = ['Deusillus', 'Niffle Kong', 'Ultra Gravitron'];
+        const expansionIdByDoKName = {
+            CALL_OF_THE_ARCHONS: 341,
+            WORLDS_COLLIDE: 452,
+            AGE_OF_ASCENSION: 435,
+            MASS_MUTATION: 479,
+            DARK_TIDINGS: 496
         };
 
-        let enhancements = {};
-
-        for (let card of cards.filter((c) => c.card_text.includes('Enhance'))) {
-            let matches = card.card_text.match(enhancementRegex);
-            if (!matches || matches.length === 1) {
-                continue;
-            }
-
-            let enhancementString = matches[1];
-            for (let char of enhancementString) {
-                let enhancement = EnhancementLookup[char];
-                if (enhancement) {
-                    enhancements[enhancement] = enhancements[enhancement]
-                        ? enhancements[enhancement] + 1
-                        : 1;
-                }
-            }
-        }
-
-        return enhancements;
-    }
-
-    assignEnhancements(cards, enhancements) {
-        let totalEnhancements = Object.keys(enhancements).reduce((a, b) => a + enhancements[b], 0);
-        let totalEnhancedCards = cards.filter((x) => x.enhancements).length;
-        let types = Object.keys(enhancements);
-
-        if (totalEnhancements === totalEnhancedCards && types.length === 1) {
-            for (const [index, card] of cards.entries()) {
-                if (card.enhancements) cards[index] = { ...card, enhancements: types };
-            }
-        } else if (totalEnhancedCards === 1) {
-            let pips = [];
-            for (const type in enhancements) {
-                for (let i = 0; i < enhancements[type]; i++) {
-                    pips.push(type);
-                }
-            }
-            for (const [index, card] of cards.entries()) {
-                if (card.enhancements) cards[index] = { ...card, enhancements: pips.sort() };
-            }
-        }
-
-        return cards;
-    }
-
-    parseDeckResponse(username, deckResponse) {
         let specialCards = {
             479: { 'dark-æmber-vault': true, 'it-s-coming': true }
         };
@@ -654,88 +617,74 @@ class DeckService {
             valoocanth: { anomalySet: 453, house: 'unfathomable' }
         };
 
-        let deckCards = deckResponse._linked.cards.filter((c) => !c.is_non_deck);
+        const deckCardsByHouseWithCount = Object.assign(
+            {},
+            ...deck.housesAndCards.map((entry) => ({
+                [entry.house.toLowerCase().replace(' ', '')]: this._withCount(entry.cards)
+            }))
+        );
 
-        let enhancements = {};
+        let cards = [];
+        for (const [house, cardsWithCount] of Object.entries(deckCardsByHouseWithCount)) {
+            const [gigantics, nonGigantics] = partition(cardsWithCount, (card) =>
+                giganticCardTitles.includes(card.cardTitle)
+            );
+            const nonGiganticHouseCards = nonGigantics.map((card) => {
+                let id = card.cardTitle
+                    .toLowerCase()
+                    .replace(/[,?.!"„“”]/gi, '')
+                    .replace(/[ '’]/gi, '-');
 
-        if (deckCards.some((card) => card.is_enhanced)) {
-            enhancements = this.countEnhancements(deckResponse.data._links.cards, deckCards);
-        }
-        let cards = deckCards.map((card) => {
-            let id = card.card_title
-                .toLowerCase()
-                .replace(/[,?.!"„“”]/gi, '')
-                .replace(/[ '’]/gi, '-');
-
-            if (card.rarity === 'Evil Twin') {
-                id += '-evil-twin';
-            }
-
-            let retCard;
-            let count = deckResponse.data._links.cards.filter((uuid) => uuid === card.id).length;
-            if (card.is_maverick) {
-                retCard = {
-                    id: id,
-                    count: count,
-                    maverick: card.house.replace(' ', '').toLowerCase()
-                };
-            } else if (card.is_anomaly) {
-                retCard = {
-                    id: id,
-                    count: count,
-                    anomaly: card.house.replace(' ', '').toLowerCase()
-                };
-            } else {
-                retCard = {
-                    id: id,
-                    count: count
-                };
-            }
-
-            if (card.is_enhanced) {
-                retCard.enhancements = [];
-            }
-
-            if (card.card_type === 'Creature2') {
-                retCard.id += '2';
-            }
-
-            // If this is one of the cards that has an entry for every house, get the correct house image
-            if (specialCards[card.expansion] && specialCards[card.expansion][id]) {
-                retCard.house = card.house.toLowerCase().replace(' ', '');
-                retCard.image = `${retCard.id}-${retCard.house}`;
-            }
-
-            if (anomalies[id] && anomalies[id].anomalySet !== card.expansion) {
-                // anomaly cards' real house
-                retCard.house = anomalies[id].house;
-                retCard.image = `${retCard.id}-${retCard.house}`;
-            }
-
-            return retCard;
-        });
-
-        let toAdd = [];
-        for (let card of cards) {
-            if (card.enhancements && card.count > 1) {
-                for (let i = 0; i < card.count - 1; i++) {
-                    let cardToAdd = Object.assign({}, card);
-
-                    cardToAdd.count = 1;
-                    toAdd.push(cardToAdd);
+                if (card.rarity === 'EvilTwin') {
+                    id += '-evil-twin';
                 }
 
-                card.count = 1;
-            }
+                let retCard = {
+                    id,
+                    count: card.count
+                };
+                if (card.maverick) {
+                    retCard = {
+                        ...retCard,
+                        maverick: house
+                    };
+                } else if (card.anomaly) {
+                    retCard = {
+                        ...retCard,
+                        anomaly: house
+                    };
+                }
+
+                // If this is one of the cards that has an entry for every house, get the correct house image
+                if (specialCards[card.expansion] && specialCards[card.expansion][id]) {
+                    retCard.house = house;
+                    retCard.image = `${retCard.id}-${retCard.house}`;
+                }
+
+                if (anomalies[id] && anomalies[id].anomalySet !== card.expansion) {
+                    // anomaly cards' real house
+                    retCard.house = anomalies[id].house;
+                    retCard.image = `${retCard.id}-${retCard.house}`;
+                }
+
+                return retCard;
+            });
+            cards.push(...nonGiganticHouseCards);
+            gigantics.forEach((gigantic) => {
+                const giganticId = gigantic.cardTitle.toLowerCase().replace(' ', '-');
+                const count = gigantic.count / 2; // Handle multiple pairs of gigantic creatures
+                cards.push({
+                    id: giganticId,
+                    count
+                });
+                cards.push({
+                    id: `${giganticId}2`,
+                    count
+                });
+            });
         }
 
-        cards = cards.concat(toAdd);
-
-        if (cards.some((card) => card.enhancements)) {
-            cards = this.assignEnhancements(cards, enhancements);
-        }
-
-        let uuid = deckResponse.data.id;
+        let uuid = deck.keyforgeId;
         let anyIllegalCards = cards.find(
             (card) =>
                 !card.id
@@ -753,19 +702,17 @@ class DeckService {
         }
 
         return {
-            expansion: deckResponse.data.expansion,
+            expansion: expansionIdByDoKName[deck.expansion],
             username: username,
             uuid: uuid,
-            identity: deckResponse.data.name
+            identity: deck.name
                 .toLowerCase()
                 .replace(/[,?.!"„“”]/gi, '')
                 .replace(/[ '’]/gi, '-'),
             cardback: '',
-            name: deckResponse.data.name,
-            houses: deckResponse.data._links.houses.map((house) =>
-                house.replace(' ', '').toLowerCase()
-            ),
-            cards: cards,
+            name: deck.name,
+            houses: Object.keys(deckCardsByHouseWithCount),
+            cards,
             lastUpdated: new Date()
         };
     }
