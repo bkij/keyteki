@@ -48,7 +48,7 @@ const ImportDeck = () => {
             .string()
             .required(t('You must specify the deck link'))
             .notOneOf(
-                ['https://www.keyforgegame.com/deck-details/00000000-0000-0000-0000-000000000000'],
+                ['https://decksofkeyforge.com/alliances/00000000-0000-0000-0000-000000000000'],
                 t('The URL you entered is invalid.  Please check it and try again.')
             )
             .matches(
@@ -77,26 +77,17 @@ const ImportDeck = () => {
                 />
                 <Panel title={t('Import Deck')}>
                     <Trans i18nKey='importdeck.enterlink'>
+                        <p>Enter an Alliance deck link from Decks of Keyforge website.</p>
                         <p>
-                            Enter the deck link from the&nbsp;
-                            <a
-                                href='https://keyforgegame.com'
-                                target='_blank'
-                                rel='noopener noreferrer'
-                            >
-                                keyforge website.
-                            </a>
-                        </p>
-                        <p>
-                            Either search for a deck, or find one from the &quot;My Decks&quot;
-                            section of the website. Find the URL of the deck and paste it in to the
-                            box below.
+                            There&apos;s an import limit set in place to respect the DoK API. You
+                            may encounter a &quot;Too many requests&quot; error on import – try
+                            again after a minute if that happens.
                         </p>
                         <p>The URL looks like this: </p>
                     </Trans>
                     <p>
                         <code>
-                            https://www.keyforgegame.com/deck-details/00000000-0000-0000-0000-000000000000
+                            https://decksofkeyforge.com/alliances/00000000-0000-0000-0000-000000000000
                         </code>
                     </p>
                     <Formik

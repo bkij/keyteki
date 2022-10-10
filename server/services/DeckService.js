@@ -366,6 +366,10 @@ class DeckService {
             throw new Error('Invalid response from Api. Please try again later.');
         }
 
+        if (!deckResponse.deck.name.includes('Alliance')) {
+            throw new Error('Not an Alliance deck.');
+        }
+
         let newDeck = this.parseDeckResponse(deck.username, deckResponse.deck);
 
         let validExpansion = await this.checkValidDeckExpansion(newDeck);

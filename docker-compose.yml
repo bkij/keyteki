@@ -38,7 +38,7 @@ services:
             POSTGRES_USER: ${POSTGRES_USER:-keyteki}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changemeplease}
         ports:
-            - '54320:5432'
+            - '5432:5432'
         volumes:
             - postgres:/data/postgres
             - ./server/db/schema:/docker-entrypoint-initdb.d

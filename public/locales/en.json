@@ -203,7 +203,7 @@
     "An error occurred importing your deck.  Please check the Url or try again later.": "An error occurred importing your deck. Please check the Url or try again later.",
     "The URL you entered is invalid.  Please check it and try again.": "The URL you entered is invalid. Please check it and try again.",
     "link": "link",
-    "importdeck.enterlink": "<0>Enter the deck link from the <1>keyforge website.</1></0><p>Either search for a deck, or find one from the \"My Decks\" section of the website. Find the URL of the deck and paste it in to the box below.</p><p>The URL looks like this: </p>",
+    "importdeck.enterlink": "<0>Enter an Alliance link from Decks of Keyforge website.</0><p>There's an import limit set in place to respect the DoK API. You may encounter a \"Too many requests\" message on import – try again after a minute if that happens.</p><p>The URL looks like this: </p>",
     "Forgotten your password?": "Forgot your password?",
     "Log In": "Log In",
     "Login": "Login",

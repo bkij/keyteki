@@ -85,6 +85,16 @@ export default function callAPIMiddleware({ dispatch, getState }) {
                 } catch (innerError) {
                     errorStatus = innerError.status;
                 }
+            } else if (error.status === 422) {
+                dispatch(
+                    Object.assign({}, payload, {
+                        status: errorStatus,
+                        message: 'Not an Alliance deck.',
+                        type: Api.ApiFailure,
+                        request: requestType
+                    })
+                );
+                return;
             } else if (error.status === 429) {
                 dispatch(
                     Object.assign({}, payload, {

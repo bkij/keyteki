@@ -112,10 +112,17 @@ module.exports.init = function (server) {
             try {
                 savedDeck = await deckService.create(req.user, deck);
             } catch (error) {
-                return res.send({
-                    success: false,
-                    message: error.message
-                });
+                if (error.message.includes('Alliance')) {
+                    return res.status(422).send({
+                        success: false,
+                        message: error.message
+                    });
+                } else {
+                    return res.send({
+                        success: false,
+                        message: error.message
+                    });
+                }
             }
 
             if (!savedDeck) {
