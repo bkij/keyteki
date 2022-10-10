@@ -2,7 +2,7 @@ class GlobalRateLimiterService {
     MINUTE_IN_MILLIS = 1000 * 60;
 
     constructor(configService) {
-        this.allowedRequestsPerMinute = configService.getValue('allowedRequestsPerMinute') || 1;
+        this.allowedRequestsPerMinute = configService.getValue('allowedRequestsPerMinute') || 100;
         this.currentInterval = this.getCurrentInterval();
         this.currentRequestsLeft = this.allowedRequestsPerMinute;
     }
