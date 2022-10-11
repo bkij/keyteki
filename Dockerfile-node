@@ -1,6 +1,7 @@
 FROM node:12
 RUN mkdir -p /app
 WORKDIR /app
+COPY keyteki-json-data /app/keyteki-json-data
 COPY version.js /app/version.js
 COPY server /app/server
 COPY config /app/config
