@@ -22,7 +22,7 @@ services:
     ports:
       - '127.0.0.1:5432:5432'
     volumes:
-      - $VOLUME_ROOT/postgres:/data/postgres
+      - postgres:/data/postgres
       - ./server/db/schema:/docker-entrypoint-initdb.d
     restart: unless-stopped
   redis:
@@ -31,7 +31,11 @@ services:
     ports:
       - '127.0.0.1:6379:6379'
     volumes:
-      - $VOLUME_ROOT/redis-data:/var/lib/redis
-      - $VOLUME_ROOT/redis.conf:/usr/local/etc/redis/redis.conf
+      - redis_data:/var/lib/redis
+      - redis_conf:/usr/local/etc/redis
     environment:
       - REDIS_REPLICATION_MODE=master
+volumes:
+  postgres:
+  redis_data:
+  redis_conf:
