@@ -1,0 +1,10 @@
+FROM --platform=linux/amd64 node:12
+RUN mkdir -p /app
+WORKDIR /app
+COPY server /app/server
+COPY package.json /app/package.json
+COPY package-lock.json /app/package-lock.json
+ENV NODE_ENV=production
+ENV PORT=9500
+RUN npm install --no-optional
+CMD ["node", "server/gamenode"]
