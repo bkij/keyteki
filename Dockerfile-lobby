@@ -1,6 +1,7 @@
 FROM node:12
 RUN mkdir -p /app
 WORKDIR /app
+COPY version.js /app/version.js
 COPY public /app/public
 COPY dist /app/dist
 ENV NODE_ENV=production
