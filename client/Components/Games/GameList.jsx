@@ -9,7 +9,6 @@ import { Col } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faLock } from '@fortawesome/free-solid-svg-icons';
 
-import Avatar from '../Site/Avatar';
 import AlertPanel from '../Site/AlertPanel';
 import * as actions from '../../redux/actions';
 import TimeLimitIcon from '../../assets/img/Timelimit.png';
@@ -94,27 +93,24 @@ class GameList extends React.Component {
         if (firstPlayer) {
             return (
                 <div className='game-faction-row first-player'>
-                    {this.getPlayerNameAndAvatar(player, firstPlayer)}
+                    {this.getPlayerName(player, firstPlayer)}
                 </div>
             );
         }
 
         return (
             <div className='game-faction-row other-player'>
-                {this.getPlayerNameAndAvatar(player, firstPlayer)}
+                {this.getPlayerName(player, firstPlayer)}
             </div>
         );
     }
 
-    getPlayerNameAndAvatar(player, firstPlayer) {
+    getPlayerName(player, firstPlayer) {
         let userClass = 'username' + (player.role ? ` ${player.role.toLowerCase()}-role` : '');
 
         if (firstPlayer) {
             return (
                 <div className='game-player-name'>
-                    <span className='gamelist-avatar'>
-                        <Avatar imgPath={player.avatar} />
-                    </span>
                     <span className={userClass}>{player.name}</span>
                 </div>
             );
@@ -123,9 +119,6 @@ class GameList extends React.Component {
         return (
             <div className='game-player-name'>
                 <span className={userClass}>{player.name}</span>
-                <span className='gamelist-avatar'>
-                    <Avatar imgPath={player.avatar} />
-                </span>
             </div>
         );
     }

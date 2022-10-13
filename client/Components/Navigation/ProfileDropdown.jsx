@@ -3,7 +3,6 @@ import { NavDropdown } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 
 import Link from './Link';
-import Avatar from '../Site/Avatar';
 
 /**
  * @typedef ProfileMenuProps
@@ -21,12 +20,7 @@ const ProfileMenu = (props) => {
         return null;
     }
 
-    const title = (
-        <span>
-            <Avatar imgPath={props.user.avatar}></Avatar>
-            {props.user.username}
-        </span>
-    );
+    const title = <span>{props.user.username}</span>;
 
     return (
         <NavDropdown title={title} id='nav-dropdown'>

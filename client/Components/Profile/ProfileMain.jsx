@@ -1,14 +1,8 @@
-import React, { useRef, useState } from 'react';
-import { Col, Form, Button } from 'react-bootstrap';
+import React from 'react';
+import { Col, Form } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'react-redux';
 
-import { PatreonStatus } from '../../types';
 import Panel from '../Site/Panel';
-import Avatar from '../Site/Avatar';
-import { PatreonClientId } from '../../constants';
-import { unlinkPatreon } from '../../redux/actions';
-import PatreonImage from '../../assets/img/Patreon_Mark_Coral.jpg';
 
 import './ProfileMain.scss';
 
@@ -25,22 +19,8 @@ import './ProfileMain.scss';
 /**
  * @param {ProfileMainProps} props
  */
-const ProfileMain = ({ user, formProps }) => {
+const ProfileMain = ({ formProps }) => {
     const { t } = useTranslation();
-    const inputFile = useRef(null);
-    const [localAvatar, setAvatar] = useState(null);
-    const dispatch = useDispatch();
-
-    const onAvatarUploadClick = () => {
-        if (!inputFile.current) {
-            return;
-        }
-
-        inputFile.current.click();
-    };
-
-    const callbackUrl = `${window.location.origin}/patreon`;
-    const patreonUrl = `https://www.patreon.com/oauth2/authorize?response_type=code&client_id=${PatreonClientId}&redirect_uri=${callbackUrl}`;
 
     return (
         <Panel title={t('Profile')}>
@@ -74,67 +54,6 @@ const ProfileMain = ({ user, formProps }) => {
                     <Form.Control.Feedback type='invalid'>
                         {formProps.errors.email}
                     </Form.Control.Feedback>
-                </Form.Group>
-                <Form.Group as={Col} md='3'>
-                    <Form.Label>{t('Avatar')}</Form.Label>
-                    <div>
-                        {!formProps.errors.avatar && localAvatar ? (
-                            <img
-                                className='profile-avatar'
-                                src={localAvatar}
-                                alt={user?.username}
-                            />
-                        ) : (
-                            <Avatar imgPath={user?.avatar}></Avatar>
-                        )}
-                        <Button variant='secondary' onClick={onAvatarUploadClick}>
-                            {t('Change avatar')}
-                        </Button>
-                    </div>
-                    <Form.Control
-                        name='avatar'
-                        type='file'
-                        accept='image/*'
-                        onChange={(event) => {
-                            if (
-                                !event.currentTarget ||
-                                !event.currentTarget.files ||
-                                event.currentTarget.files.length === 0
-                            ) {
-                                return;
-                            }
-
-                            const file = event.currentTarget.files[0];
-                            setAvatar(URL.createObjectURL(file));
-                            formProps.setFieldValue('avatar', file);
-                        }}
-                        onBlur={formProps.handleBlur}
-                        hidden
-                        ref={inputFile}
-                        isInvalid={!!formProps.errors.avatar}
-                    ></Form.Control>
-                    <Form.Control.Feedback type='invalid'>
-                        {formProps.errors.avatar}
-                    </Form.Control.Feedback>
-                </Form.Group>
-                <Form.Group as={Col} md='3'>
-                    <Form.Label>{t('Patreon')}</Form.Label>
-                    <div>
-                        <img
-                            className='profile-patreon-icon'
-                            src={PatreonImage}
-                            alt={t('Patreon Logo')}
-                        />
-                        {!user?.patreon || user?.patreon === PatreonStatus.Unlinked ? (
-                            <Button variant='secondary' href={patreonUrl}>
-                                {t('Link Account')}
-                            </Button>
-                        ) : (
-                            <Button variant='secondary' onClick={() => dispatch(unlinkPatreon())}>
-                                {t('Unlink Account')}
-                            </Button>
-                        )}
-                    </div>
                 </Form.Group>
             </Form.Row>
             <Form.Row>

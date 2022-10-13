@@ -4,7 +4,6 @@ import { Button } from 'react-bootstrap';
 
 import Panel from '../Site/Panel';
 import DeckStatus from '../Decks/DeckStatus';
-import Avatar from '../Site/Avatar';
 
 import './PendingGamePlayer.scss';
 
@@ -74,7 +73,6 @@ const PendingGamePlayers = ({ currentGame, user, onSelectDeck }) => {
                 }
                 return (
                     <div className={rowClass} key={player.name}>
-                        <Avatar imgPath={player.avatar} />
                         <span className={userClass}>{player.name}</span>
                         {deck} {status} {selectLink}
                     </div>

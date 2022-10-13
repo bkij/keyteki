@@ -3,8 +3,6 @@ import moment from 'moment';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTimes } from '@fortawesome/free-solid-svg-icons';
 
-import Avatar from '../Site/Avatar';
-
 import './LobbyChat.scss';
 
 const LobbyChat = ({ messages, isModerator, onRemoveMessageClick }) => {
@@ -130,7 +128,6 @@ const LobbyChat = ({ messages, isModerator, onRemoveMessageClick }) => {
                     key={timestamp + firstMessage.user.username + (index++).toString()}
                     className='message-container'
                 >
-                    <Avatar imgPath={firstMessage.user.avatar} float />
                     <span className={userClass}>{firstMessage.user.username}</span>
                     <span>{timestamp}</span>
                     {renderedMessages}

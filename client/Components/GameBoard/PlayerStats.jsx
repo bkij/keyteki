@@ -15,7 +15,6 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { Badge } from 'react-bootstrap';
 
-import Avatar from '../Site/Avatar';
 import { Constants } from '../../constants';
 import Minus from '../../assets/img/Minus.png';
 import Plus from '../../assets/img/Plus.png';
@@ -168,9 +167,8 @@ const PlayerStats = ({
         }
     };
 
-    let playerAvatar = (
+    let playerName = (
         <div className={`pr-1 player-info ${activePlayer ? 'active-player' : 'inactive-player'}`}>
-            <Avatar imgPath={user?.avatar} />
             <b>{user?.username || t('Noone')}</b>
         </div>
     );
@@ -257,7 +255,7 @@ const PlayerStats = ({
     return (
         <div className={statsClass}>
             <div className='state'>
-                {playerAvatar}
+                {playerName}
                 <Keys keys={stats.keys} manualMode={manualMode} />
                 {getButton('amber', t('Amber'))}
                 {getButton('chains', t('Chains'))}

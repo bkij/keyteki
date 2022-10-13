@@ -2,7 +2,6 @@ import React from 'react';
 import classNames from 'classnames';
 import { useSelector } from 'react-redux';
 
-import Avatar from '../Site/Avatar';
 import AlertPanel from '../Site/AlertPanel';
 import { Constants } from '../../constants';
 import AmberImage from '../../assets/img/amber.png';
@@ -170,7 +169,6 @@ const Messages = ({ messages, onCardMouseOver, onCardMouseOut }) => {
 
                 messages.push(
                     <div key={index++} className='message-chat'>
-                        <Avatar imgPath={fragment.avatar} float />
                         <span key={index++} className={userClass}>
                             {fragment.name}
                         </span>
