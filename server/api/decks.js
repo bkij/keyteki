@@ -91,20 +91,52 @@ module.exports.init = function (server) {
             res.send({ success: true, numDecks: numDecks, decks: decks });
         })
     );
+    server.get(
+        '/api/decks/podData/:id',
+        passport.authenticate('jwt', { session: false }),
+        wrapAsync(async function (req, res) {
+            if (!req.params.id || req.params.id === '') {
+                return res.status(404).send({ message: 'No such deck' });
+            }
 
+            let deck = await deckService.getDeckDataAndSave(req.params.id);
+
+            if (!deck) {
+                return res.status(404).send({ message: 'No such deck' });
+            }
+
+            const deckResponse = {
+                id: deck.data.id,
+                name: deck.data.name,
+                houses: deck._linked.houses.map((house) => house.id.toLowerCase().replace(' ', '')) // TODO: util
+            };
+
+            res.send({ success: true, deck: deckResponse });
+        })
+    );
+
+    // req shape { "pods": { "1234-abcd": { houses: ["brobnar", "dis"] }, "432abcd": { houses: ["logos"] } } }
     server.post(
         '/api/decks',
         passport.authenticate('jwt', { session: false }),
         wrapAsync(async function (req, res) {
-            if (!req.body.uuid) {
-                return res.send({ success: false, message: 'uuid must be specified' });
+            if (!req.body.pods || !Object.keys(req.body.pods).length) {
+                return res.send({ success: false, message: 'invalid request' });
             }
 
-            let deck = Object.assign({}, { uuid: req.body.uuid, username: req.user.username });
+            // TODO: more pods validation
+            const deckPods = Object.assign({}, req.body.pods);
+            const decksData = await Promise.all(
+                Object.keys(req.body.pods).map((deckId) => deckService.getDeckDataAndSave(deckId))
+            );
+            decksData.forEach((deckData) => {
+                deckPods[deckData['data']['id']]['data'] = deckData;
+            });
+
             let savedDeck;
 
             try {
-                savedDeck = await deckService.create(req.user, deck);
+                savedDeck = await deckService.create(req.user, deckPods);
             } catch (error) {
                 return res.send({
                     success: false,

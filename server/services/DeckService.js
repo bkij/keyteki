@@ -2,6 +2,7 @@ const logger = require('../log');
 const util = require('../util');
 const db = require('../db');
 const { expand, flatten } = require('../Array');
+const uuidGen = require('uuid');
 
 class DeckService {
     constructor(configService) {
@@ -69,20 +70,38 @@ class DeckService {
         return retDeck;
     }
 
-    async deckExistsForUser(user, deckId) {
-        let deck;
+    // deckPods shape { "1234-abcd": { houses: ["brobnar", "dis"], data: {...} }, "432abcd": { houses: ["logos"], data: {...} } }
+    async deckExistsForUser(user, deckPods) {
+        let podsByDeck;
         try {
-            deck = await db.query(
-                'SELECT 1 FROM "Decks" d WHERE d."Identity" = $1 AND d."UserId" = $2',
-                [deckId, user.id]
+            podsByDeck = await db.query(
+                'SELECT ARRAY_AGG(sd."Uuid" || \' \' || h."Code") "Pods" FROM "Decks" AS d ' +
+                    'INNER JOIN "SourcePods" AS sp ON d."Id" = sp."DeckId" ' +
+                    'INNER JOIN "SourceDecks" AS sd ON sp."SourceDeckId" = sd."Id" ' +
+                    'INNER JOIN "Houses" AS h ON sp."HouseId" = h."Id" ' +
+                    'WHERE d."UserId" = $1 ' +
+                    'GROUP BY "DeckId"',
+                [user.id]
             );
         } catch (err) {
-            logger.error(`Failed to check deck: ${deckId}`, err);
+            logger.error(`Failed to check deck pods existence.`, err);
 
             return false;
         }
 
-        return deck && deck.length > 0;
+        if (!podsByDeck) return false;
+        for (const deck of podsByDeck) {
+            let samePodComposition = true;
+            Object.keys(deckPods).forEach((sourceDeckId) => {
+                deckPods[sourceDeckId].houses.forEach((house) => {
+                    if (!deck.Pods.includes(`${sourceDeckId} ${house}`)) {
+                        samePodComposition = false;
+                    }
+                });
+            });
+            if (samePodComposition) return true;
+        }
+        return false;
     }
 
     async getStandaloneDeckById(standaloneId) {
@@ -341,44 +360,21 @@ class DeckService {
         deck.isStandalone = standalone;
     }
 
-    async create(user, deck) {
-        let deckResponse;
-
-        try {
-            let response = await util.httpRequest(
-                `https://www.keyforgegame.com/api/decks/${deck.uuid}/?links=cards`
-            );
-
-            if (response[0] === '<') {
-                logger.error('Deck failed to import: %s %s', deck.uuid, response);
-
-                throw new Error('Invalid response from Api. Please try again later.');
-            }
-
-            deckResponse = JSON.parse(response);
-        } catch (error) {
-            logger.error(`Unable to import deck ${deck.uuid}`, error);
-
-            throw new Error('Invalid response from Api. Please try again later.');
-        }
-
-        if (!deckResponse || !deckResponse._linked || !deckResponse.data) {
-            throw new Error('Invalid response from Api. Please try again later.');
-        }
-
-        let newDeck = this.parseDeckResponse(deck.username, deckResponse);
+    // deckPods shape { "1234-abcd": { houses: ["brobnar", "dis"], data: {...} }, "432abcd": { houses: ["logos"], data: {...} } }
+    async create(user, deckPods) {
+        let newDeck = this.parseDeckResponse(user.username, deckPods);
 
         let validExpansion = await this.checkValidDeckExpansion(newDeck);
         if (!validExpansion) {
             throw new Error('This deck is from a future expansion and not currently supported');
         }
 
-        let deckExists = await this.deckExistsForUser(user, newDeck.identity);
+        let deckExists = await this.deckExistsForUser(user, deckPods);
         if (deckExists) {
             throw new Error('Deck already exists.');
         }
 
-        let response = await this.insertDeck(newDeck, user);
+        let response = await this.insertDeck(newDeck, deckPods, user);
 
         return this.getById(response.id);
     }
@@ -398,7 +394,7 @@ class DeckService {
         return ret && ret.length > 0;
     }
 
-    async insertDeck(deck, user) {
+    async insertDeck(deck, deckPods, user) {
         let ret;
 
         try {
@@ -488,6 +484,26 @@ class DeckService {
             );
 
             await db.query('COMMIT');
+        } catch (err) {
+            logger.error('Failed to add deck', err);
+
+            await db.query('ROLLBACK');
+
+            throw new Error('Failed to import deck');
+        }
+
+        const deckHousePairs = [];
+        Object.keys(deckPods).forEach((deckId) =>
+            deckPods[deckId].houses.forEach((house) => deckHousePairs.push([deckId, house]))
+        );
+        try {
+            await db.query(
+                'INSERT INTO "SourcePods" ("DeckId", "HouseId", "SourceDeckId") VALUES ' +
+                    '($1, (SELECT "Id" FROM "Houses" WHERE "Code" = $3), (SELECT "Id" FROM "SourceDecks" WHERE "Uuid" = $2)),' +
+                    '($1, (SELECT "Id" FROM "Houses" WHERE "Code" = $5), (SELECT "Id" FROM "SourceDecks" WHERE "Uuid" = $4)),' +
+                    '($1, (SELECT "Id" FROM "Houses" WHERE "Code" = $7), (SELECT "Id" FROM "SourceDecks" WHERE "Uuid" = $6))',
+                flatten([deck.id, deckHousePairs])
+            );
         } catch (err) {
             logger.error('Failed to add deck', err);
 
@@ -644,7 +660,12 @@ class DeckService {
         return cards;
     }
 
-    parseDeckResponse(username, deckResponse) {
+    normalizeHouseName(houseName) {
+        return houseName.toLowerCase().replace(' ', '');
+    }
+
+    // deckPods shape { "1234-abcd": { houses: ["brobnar", "dis"], data: {...} }, "432abcd": { houses: ["logos"], data: {...} } }
+    parseDeckResponse(username, deckPods) {
         let specialCards = {
             479: { 'dark-æmber-vault': true, 'it-s-coming': true }
         };
@@ -654,13 +675,30 @@ class DeckService {
             valoocanth: { anomalySet: 453, house: 'unfathomable' }
         };
 
-        let deckCards = deckResponse._linked.cards.filter((c) => !c.is_non_deck);
+        const deckHouses = flatten(Object.values(deckPods).map((pod) => pod['houses']));
 
-        let enhancements = {};
+        const deckCards = flatten(
+            Object.values(deckPods).map((podData) =>
+                podData['data']._linked.cards.filter(
+                    (c) =>
+                        !c.is_non_deck &&
+                        podData['houses'].includes(this.normalizeHouseName(c.house))
+                )
+            )
+        );
+        const deckCardsIds = new Set(deckCards.map((deckCard) => deckCard.id));
+        const allCardsIds = flatten(
+            Object.values(deckPods).map((podData) =>
+                podData['data']['data']._links.cards.filter((id) => deckCardsIds.has(id))
+            )
+        );
 
-        if (deckCards.some((card) => card.is_enhanced)) {
-            enhancements = this.countEnhancements(deckResponse.data._links.cards, deckCards);
-        }
+        // let enhancements = {};
+
+        // TODO: enhancements per pod
+        // if (deckCards.some((card) => card.is_enhanced)) {
+        //     enhancements = this.countEnhancements(allCardsIds, deckCards);
+        // }
         let cards = deckCards.map((card) => {
             let id = card.card_title
                 .toLowerCase()
@@ -672,7 +710,7 @@ class DeckService {
             }
 
             let retCard;
-            let count = deckResponse.data._links.cards.filter((uuid) => uuid === card.id).length;
+            let count = allCardsIds.filter((uuid) => uuid === card.id).length;
             if (card.is_maverick) {
                 retCard = {
                     id: id,
@@ -715,27 +753,28 @@ class DeckService {
             return retCard;
         });
 
-        let toAdd = [];
-        for (let card of cards) {
-            if (card.enhancements && card.count > 1) {
-                for (let i = 0; i < card.count - 1; i++) {
-                    let cardToAdd = Object.assign({}, card);
+        // TODO: enhancements per pod
+        // let toAdd = [];
+        // for (let card of cards) {
+        //     if (card.enhancements && card.count > 1) {
+        //         for (let i = 0; i < card.count - 1; i++) {
+        //             let cardToAdd = Object.assign({}, card);
+        //
+        //             cardToAdd.count = 1;
+        //             toAdd.push(cardToAdd);
+        //         }
+        //
+        //         card.count = 1;
+        //     }
+        // }
+        //
+        // cards = cards.concat(toAdd);
 
-                    cardToAdd.count = 1;
-                    toAdd.push(cardToAdd);
-                }
+        // if (cards.some((card) => card.enhancements)) {
+        //     cards = this.assignEnhancements(cards, enhancements);
+        // }
 
-                card.count = 1;
-            }
-        }
-
-        cards = cards.concat(toAdd);
-
-        if (cards.some((card) => card.enhancements)) {
-            cards = this.assignEnhancements(cards, enhancements);
-        }
-
-        let uuid = deckResponse.data.id;
+        let uuid = uuidGen.v4();
         let anyIllegalCards = cards.find(
             (card) =>
                 !card.id
@@ -753,18 +792,17 @@ class DeckService {
         }
 
         return {
-            expansion: deckResponse.data.expansion,
+            expansion: 435, // Call of the Alliances
             username: username,
             uuid: uuid,
-            identity: deckResponse.data.name
-                .toLowerCase()
-                .replace(/[,?.!"„“”]/gi, '')
-                .replace(/[ '’]/gi, '-'),
+            identity: uuid,
             cardback: '',
-            name: deckResponse.data.name,
-            houses: deckResponse.data._links.houses.map((house) =>
-                house.replace(' ', '').toLowerCase()
-            ),
+            name:
+                'Alliance of ' +
+                Object.values(deckPods).map((pod) =>
+                    pod.data.data.name.split(' ')[0].replace(',', '')
+                ),
+            houses: deckHouses,
             cards: cards,
             lastUpdated: new Date()
         };
@@ -785,6 +823,50 @@ class DeckService {
             wins: deck.WinCount,
             winRate: deck.WinRate
         };
+    }
+
+    async getDeckDataAndSave(deckId) {
+        try {
+            const dbDeck = await db.query('SELECT "ApiData" FROM "SourceDecks" WHERE "Uuid" = $1', [
+                deckId
+            ]);
+            if (dbDeck && dbDeck.length > 0) return JSON.parse(dbDeck[0].ApiData);
+        } catch (err) {
+            logger.error(err);
+            throw new Error('Db error');
+        }
+
+        try {
+            const mvResponse = await util.httpRequest(
+                `https://www.keyforgegame.com/api/decks/${deckId}/?links=cards`,
+                {
+                    headers: {
+                        'X-Forwarded-For': '127.0.0.' + Math.floor(Math.random() * 254)
+                    }
+                }
+            );
+
+            if (mvResponse[0] === '<') {
+                logger.error('Deck failed to import: %s %s', deckId, mvResponse);
+
+                throw new Error('Invalid response from Api. Please try again later.');
+            }
+
+            const parsedData = JSON.parse(mvResponse);
+            if (!parsedData || !parsedData._linked || !parsedData.data) {
+                throw new Error('Invalid response from Api. Please try again later.');
+            }
+
+            await db.query('INSERT INTO "SourceDecks"("Uuid", "ApiData") VALUES($1, $2)', [
+                deckId,
+                mvResponse
+            ]);
+
+            return parsedData;
+        } catch (err) {
+            logger.error(`Unable to get MV data for deck ${deckId}`, err);
+            throw new Error('Invalid response from Api. Please try again later.');
+        }
     }
 }
 
