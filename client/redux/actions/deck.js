@@ -60,22 +60,6 @@ export function deleteDeck(deck) {
     };
 }
 
-export function saveDeck(deck) {
-    let str = JSON.stringify({
-        uuid: deck.uuid
-    });
-
-    return {
-        types: [Decks.SaveDeck, Decks.DeckSaved],
-        shouldCallAPI: () => true,
-        APIParams: {
-            url: '/api/decks/',
-            type: 'POST',
-            data: str
-        }
-    };
-}
-
 export function clearDeckStatus() {
     return {
         type: 'CLEAR_DECK_STATUS'
@@ -103,6 +87,57 @@ export function saveDeckEnhancements(deck, enhancements) {
             url: `/api/decks/${deck.id}/enhancements`,
             type: 'POST',
             data: str
+        }
+    };
+}
+
+export function chooseSourceDeckHouse(sourceDeckIdx, house) {
+    return {
+        type: 'CHOOSE_SOURCE_DECK_HOUSE',
+        sourceDeckIdx,
+        house
+    };
+}
+
+export function removeSourceDecks() {
+    return {
+        type: 'REMOVE_SOURCE_DECKS'
+    };
+}
+
+// just add to list after validation
+export function getSourceDecks(deckIds) {
+    return {
+        types: [Decks.AddSourceDecks, Decks.SourceDecksAdded],
+        shouldCallAPI: () => true,
+        APIParams: {
+            url: `/api/source-decks?${deckIds.map((id) => `deckIds=${id}`).join('&')}`,
+            type: 'GET'
+        }
+    };
+}
+
+export function saveDeck() {
+    return async (dispatch, getState) => {
+        const sourceDecks = getState().cards.sourceDecks;
+        const pods = {};
+        sourceDecks.forEach((deck) => {
+            if (!pods[deck.id]) pods[deck.id] = { houses: [] };
+            pods[deck.id].houses.push(deck.chosenHouse);
+        });
+
+        await dispatch({
+            types: [Decks.SaveDeck, Decks.DeckSaved],
+            shouldCallAPI: () => true,
+            APIParams: {
+                url: '/api/decks/',
+                type: 'POST',
+                data: JSON.stringify({ pods })
+            }
+        });
+        const saveDeckState = getState().api[Decks.SaveDeck];
+        if (saveDeckState && saveDeckState.success) {
+            dispatch(removeSourceDecks());
         }
     };
 }

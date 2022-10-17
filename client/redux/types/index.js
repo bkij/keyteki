@@ -18,7 +18,9 @@ export const Decks = Object.freeze({
     RequestDecks: 'REQUEST_DECKS',
     DecksReceived: 'DECKS_RECEIVED',
     SaveEnhancements: 'DECK_SAVE_ENHANCEMENTS',
-    EnhancementsSaved: 'DECK_ENHANCEMENTS_SAV'
+    EnhancementsSaved: 'DECK_ENHANCEMENTS_SAV',
+    AddSourceDecks: 'ADD_SOURCE_DECKS',
+    SourceDecksAdded: 'SOURCE_DECKS_ADDED'
 });
 
 export const UserAction = Object.freeze({

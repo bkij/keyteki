@@ -70,7 +70,7 @@ function processDecks(decks, state) {
     }
 }
 
-export default function (state = { decks: [], cards: {} }, action) {
+export default function (state = { decks: [], cards: {}, sourceDecks: [] }, action) {
     let newState;
     switch (action.type) {
         case 'RECEIVE_CARDS':
@@ -193,6 +193,17 @@ export default function (state = { decks: [], cards: {} }, action) {
                 deckDeleted: false,
                 deckSaved: false
             });
+        case Decks.SourceDecksAdded:
+            return Object.assign({}, state, {
+                sourceDecks: action.response.decks
+            });
+        case 'CHOOSE_SOURCE_DECK_HOUSE':
+            newState = Object.assign({}, state);
+            newState.sourceDecks = [...newState.sourceDecks];
+            newState.sourceDecks[action.sourceDeckIdx].chosenHouse = action.house;
+            return newState;
+        case 'REMOVE_SOURCE_DECKS':
+            return Object.assign({}, state, { sourceDecks: [] });
         default:
             return state;
     }

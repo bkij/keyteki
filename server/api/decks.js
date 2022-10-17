@@ -96,14 +96,19 @@ module.exports.init = function (server) {
         passport.authenticate('jwt', { session: false }),
         wrapAsync(async function (req, res) {
             if (!req.query.deckIds || req.query.deckIds.length !== 3) {
-                return res.status(404).send({ message: 'Invalid request' }); // TODO
+                return res.status(404).send({ message: 'Invalid request' });
             }
 
-            const decks = await Promise.all(
-                req.query.deckIds.map((deckId) => deckService.getDeckDataAndSave(deckId))
-            );
+            let decks = [];
+            try {
+                decks = await Promise.all(
+                    req.query.deckIds.map((deckId) => deckService.getDeckDataAndSave(deckId))
+                );
+            } catch (err) {
+                return res.send({ success: false, message: err.message });
+            }
             if (new Set(decks.map((deck) => deck.data.expansion)).size !== 1) {
-                return res.status(400).send({ message: 'Multiple sets' }); // TODO
+                return res.send({ success: false, message: 'Multiple sets not allowed.' });
             }
 
             const deckResponses = decks.map((deck) => ({
@@ -121,8 +126,12 @@ module.exports.init = function (server) {
         '/api/decks',
         passport.authenticate('jwt', { session: false }),
         wrapAsync(async function (req, res) {
-            if (!req.body.pods || !deckService.podsHousesValid(req.body.pods)) {
-                return res.send({ success: false, message: 'invalid request' });
+            if (!req.body.pods) {
+                return res.send({ success: false, message: 'Invalid request' });
+            }
+            const { valid, message } = deckService.podsHousesValid(req.body.pods);
+            if (!valid) {
+                return res.send({ success: false, message });
             }
 
             const deckPods = Object.assign({}, req.body.pods);

@@ -12,15 +12,17 @@ class DeckService {
 
     // pods shape { "1234-abcd": { houses: ["brobnar", "dis"] }, "432abcd": { houses: ["logos"] } }
     podsHousesValid(pods) {
+        const validationResult = (valid, message) => ({ valid, message });
         const allHouses = [];
         Object.values(pods).forEach((pod) => {
-            if (!pod.houses) return false;
-            if (pod.houses.length === 0) return false;
+            if (!pod.houses) return validationResult(false, 'Invalid request');
+            if (pod.houses.length === 0) return validationResult(false, 'Invalid request');
             allHouses.push(...pod.houses);
         });
-        if (allHouses.length !== 3) return false;
-        if (new Set(allHouses).size !== allHouses.length) return false;
-        return true;
+        if (allHouses.length !== 3) return validationResult(false, 'Invalid request');
+        if (new Set(allHouses).size !== allHouses.length)
+            return validationResult(false, 'Duplicate houses between pods.');
+        return validationResult(true, '');
     }
 
     async getHouseIdFromName(house) {
@@ -375,9 +377,11 @@ class DeckService {
 
     // deckPods shape { "1234-abcd": { houses: ["brobnar", "dis"], data: {...} }, "432abcd": { houses: ["logos"], data: {...} } }
     async create(user, deckPods) {
-        const expansions = deckPods.map((deckData) => deckData['data']['expansion']);
+        const expansions = Object.values(deckPods).map(
+            (deckData) => deckData['data']['data']['expansion']
+        );
         if (new Set(expansions).size !== 1) {
-            throw new Error('Multiple expansions.');
+            throw new Error('Multiple sets not allowed.');
         }
 
         let newDeck = this.parseDeckResponse(user.username, deckPods, expansions[0]);
@@ -748,9 +752,9 @@ class DeckService {
                 };
             }
 
-            if (card.is_enhanced) {
-                retCard.enhancements = [];
-            }
+            // if (card.is_enhanced) {
+            //     retCard.enhancements = [];
+            // }
 
             if (card.card_type === 'Creature2') {
                 retCard.id += '2';
@@ -851,8 +855,8 @@ class DeckService {
             if (dbDeck && dbDeck.length > 0) return JSON.parse(dbDeck[0].ApiData);
         } catch (err) {
             logger.error(err);
-            // TODO: does this go through to client
-            throw new Error('Db error');
+            // Error message goes through to the client
+            throw new Error('Invalid response from Api. Please try again later.');
         }
 
         try {

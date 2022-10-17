@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { Col, Form, Button } from 'react-bootstrap';
 import { useSelector, useDispatch } from 'react-redux';
 import { Formik } from 'formik';
@@ -10,13 +10,15 @@ import * as yup from 'yup';
 import Panel from '../Site/Panel';
 import ApiStatus from '../Site/ApiStatus';
 import { Decks } from '../../redux/types';
-import { clearApiStatus, navigate, saveDeck } from '../../redux/actions';
+import { clearApiStatus, getSourceDecks, navigate } from '../../redux/actions';
+import AllianceComposition from './AllianceComposition';
 
 const ImportDeck = () => {
     const { t } = useTranslation();
     const dispatch = useDispatch();
     const selectedDeck = useSelector((state) => state.cards.selectedDeck);
-    const apiState = useSelector((state) => {
+    const sourceDecks = useSelector((state) => state.cards.sourceDecks);
+    const apiSaveState = useSelector((state) => {
         const retState = state.api[Decks.SaveDeck];
 
         if (retState && retState.success) {
@@ -42,19 +44,32 @@ const ImportDeck = () => {
 
         return retState;
     });
+    const apiSourceDeckState = useSelector((state) => {
+        const retState = state.api[Decks.AddSourceDecks];
+        if (retState && retState.success) {
+            retState.message = 'Decks fetched successfully';
+            setTimeout(() => {
+                dispatch(clearApiStatus(Decks.AddSourceDecks));
+            }, 1000);
+        }
+        return retState;
+    });
 
+    const yupValidator = yup
+        .string()
+        .required(t('You must specify the deck link'))
+        .notOneOf(
+            ['https://www.keyforgegame.com/deck-details/00000000-0000-0000-0000-000000000000'],
+            t('The URL you entered is invalid.  Please check it and try again.')
+        )
+        .matches(
+            /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/,
+            t('The URL you entered is invalid.  Please check it and try again.')
+        );
     const schema = yup.object({
-        deckLink: yup
-            .string()
-            .required(t('You must specify the deck link'))
-            .notOneOf(
-                ['https://www.keyforgegame.com/deck-details/00000000-0000-0000-0000-000000000000'],
-                t('The URL you entered is invalid.  Please check it and try again.')
-            )
-            .matches(
-                /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/,
-                t('The URL you entered is invalid.  Please check it and try again.')
-            )
+        ['deckLink-0']: yupValidator,
+        ['deckLink-1']: yupValidator,
+        ['deckLink-2']: yupValidator
     });
 
     const initialValues = {
@@ -63,41 +78,38 @@ const ImportDeck = () => {
 
     const onSubmit = (values) => {
         const regex = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
-        let uuid = values.deckLink.match(regex);
 
-        dispatch(saveDeck({ uuid: uuid[0] }));
+        const deckIds = [];
+        [...Array(3).keys()].map((idx) => {
+            const uuid = values[`deckLink-${idx}`].match(regex);
+            deckIds.push(uuid[0]);
+        });
+
+        dispatch(getSourceDecks(deckIds));
     };
 
     return (
         <div>
             <Col md={{ span: 8, offset: 2 }} className='profile full-height'>
                 <ApiStatus
-                    state={apiState}
+                    state={apiSaveState}
                     onClose={() => dispatch(clearApiStatus(Decks.SaveDeck))}
                 />
+                <ApiStatus
+                    state={apiSourceDeckState}
+                    onClose={() => dispatch(clearApiStatus(Decks.AddSourceDecks))}
+                />
                 <Panel title={t('Import Deck')}>
-                    <Trans i18nKey='importdeck.enterlink'>
-                        <p>
-                            Enter the deck link from the&nbsp;
-                            <a
-                                href='https://keyforgegame.com'
-                                target='_blank'
-                                rel='noopener noreferrer'
-                            >
-                                keyforge website.
-                            </a>
-                        </p>
-                        <p>
-                            Either search for a deck, or find one from the &quot;My Decks&quot;
-                            section of the website. Find the URL of the deck and paste it in to the
-                            box below.
-                        </p>
-                        <p>The URL looks like this: </p>
-                    </Trans>
                     <p>
-                        <code>
-                            https://www.keyforgegame.com/deck-details/00000000-0000-0000-0000-000000000000
-                        </code>
+                        Enter 3 deck links from the&nbsp;
+                        <a
+                            href='https://keyforgegame.com'
+                            target='_blank'
+                            rel='noopener noreferrer'
+                        >
+                            keyforge website.
+                        </a>
+                        &nbsp;Then, choose a house pod for each deck and save.
                     </p>
                     <Formik
                         validationSchema={schema}
@@ -111,32 +123,33 @@ const ImportDeck = () => {
                                     formProps.handleSubmit(event);
                                 }}
                             >
-                                <Form.Row>
-                                    <Form.Group as={Col} xs='9' controlId='formGridDeckLink'>
-                                        <Form.Label>{t('Deck Link')}</Form.Label>
-                                        <Form.Control
-                                            name='deckLink'
-                                            type='text'
-                                            placeholder={t('Enter the deck link')}
-                                            value={formProps.values.deckLink}
-                                            onChange={formProps.handleChange}
-                                            onBlur={formProps.handleBlur}
-                                            isInvalid={
-                                                formProps.touched.deckLink &&
-                                                !!formProps.errors.deckLink
-                                            }
-                                        />
-                                        <Form.Control.Feedback type='invalid'>
-                                            {formProps.errors.deckLink}
-                                        </Form.Control.Feedback>
-                                    </Form.Group>
-                                </Form.Row>
+                                {[...Array(3).keys()].map((idx) => (
+                                    <Form.Row key={idx}>
+                                        <Form.Group as={Col} xs='9' controlId='formGridDeckLink'>
+                                            <Form.Control
+                                                name={`deckLink-${idx}`}
+                                                type='text'
+                                                placeholder={t('Enter the deck link')}
+                                                value={formProps.values[`deckLink-${idx}`]}
+                                                onChange={formProps.handleChange}
+                                                onBlur={formProps.handleBlur}
+                                                isInvalid={
+                                                    formProps.touched[`deckLink-${idx}`] &&
+                                                    !!formProps.errors[`deckLink-${idx}`]
+                                                }
+                                            />
+                                            <Form.Control.Feedback type='invalid'>
+                                                {formProps.errors[`deckLink-${idx}`]}
+                                            </Form.Control.Feedback>
+                                        </Form.Group>
+                                    </Form.Row>
+                                ))}
 
                                 <Col className='text-center'>
                                     <Button variant='secondary' type='submit'>
-                                        {t('Import')}
+                                        {t('Add decks')}
                                         &nbsp;
-                                        {apiState && apiState.loading && (
+                                        {apiSourceDeckState && apiSourceDeckState.loading && (
                                             <FontAwesomeIcon icon={faCircleNotch} spin />
                                         )}
                                     </Button>
@@ -144,6 +157,13 @@ const ImportDeck = () => {
                             </Form>
                         )}
                     </Formik>
+                    {sourceDecks.length !== 0 && (
+                        <AllianceComposition
+                            sourceDecks={sourceDecks}
+                            dispatch={dispatch}
+                            apiState={apiSaveState}
+                        />
+                    )}
                 </Panel>
             </Col>
         </div>

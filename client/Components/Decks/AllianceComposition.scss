@@ -1,0 +1,29 @@
+.import-house-icon-row {
+    display: flex;
+    justify-content: start;
+    margin-bottom: 5px;
+
+    div {
+        cursor: pointer;
+
+        &:hover {
+            background-color: theme-color(primary);
+        }
+
+        &.disabled {
+            opacity: 0.4;
+
+            &:hover {
+                background-color: initial;
+            }
+        }
+    }
+}
+
+.source-decks {
+    margin-top: 20px;
+}
+
+.source-deck-row {
+    margin-bottom: 20px;
+}
