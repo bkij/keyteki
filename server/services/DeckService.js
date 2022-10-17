@@ -717,17 +717,19 @@ class DeckService {
 
         const deckCards = flatten(
             Object.values(deckPods).map((podData) =>
-                podData['data']._linked.cards.filter(
-                    (c) =>
-                        !c.is_non_deck &&
-                        podData['houses'].includes(this.normalizeHouseName(c.house))
-                )
-            )
-        );
-        const deckCardsIds = new Set(deckCards.map((deckCard) => deckCard.id));
-        const allCardsIds = flatten(
-            Object.values(deckPods).map((podData) =>
-                podData['data']['data']._links.cards.filter((id) => deckCardsIds.has(id))
+                podData.data._linked.cards
+                    .filter(
+                        (c) =>
+                            !c.is_non_deck &&
+                            podData.houses.includes(this.normalizeHouseName(c.house))
+                    )
+                    .map((cardData) =>
+                        Object.assign(cardData, {
+                            count: podData.data.data._links.cards.filter(
+                                (uuid) => cardData.id === uuid
+                            ).length
+                        })
+                    )
             )
         );
 
@@ -755,23 +757,22 @@ class DeckService {
             }
 
             let retCard;
-            let count = allCardsIds.filter((uuid) => uuid === card.id).length;
             if (card.is_maverick) {
                 retCard = {
                     id: id,
-                    count: count,
+                    count: card.count,
                     maverick: card.house.replace(' ', '').toLowerCase()
                 };
             } else if (card.is_anomaly) {
                 retCard = {
                     id: id,
-                    count: count,
+                    count: card.count,
                     anomaly: card.house.replace(' ', '').toLowerCase()
                 };
             } else {
                 retCard = {
                     id: id,
-                    count: count
+                    count: card.count
                 };
             }
 
@@ -813,11 +814,6 @@ class DeckService {
         }
 
         cards = cards.concat(toAdd);
-
-        // TODO:
-        // if (cards.some((card) => card.enhancements)) {
-        //     cards = this.assignEnhancements(cards, enhancements);
-        // }
 
         let uuid = uuidGen.v4();
         let anyIllegalCards = cards.find(
