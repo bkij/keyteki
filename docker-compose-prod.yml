@@ -15,7 +15,7 @@ services:
     restart: always
     image: keyteki-node
     ports:
-      - '127.0.0.1:9500:9500'
+      - '127.0.0.1:9501:9500'
   postgres:
     image: postgres
     environment:
