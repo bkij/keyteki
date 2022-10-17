@@ -1,0 +1,13 @@
+FROM node:12
+RUN mkdir -p /app
+WORKDIR /app
+COPY keyteki-json-data /app/keyteki-json-data
+COPY version.js /app/version.js
+COPY server /app/server
+COPY config /app/config
+COPY package.json /app/package.json
+COPY package-lock.json /app/package-lock.json
+RUN npm install --no-optional
+ENV NODE_ENV=production
+ENV PORT=9500
+CMD ["node", "server/gamenode"]

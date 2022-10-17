@@ -1,0 +1,43 @@
+version: '3.5'
+services:
+  lobby:
+    restart: always
+    image: keyteki-lobby
+    ports:
+      - '127.0.0.1:4000:4000'
+    links:
+      - postgres
+    depends_on:
+      - postgres
+    volumes:
+      - $PUBLIC_DIR:/app/public
+  node:
+    restart: always
+    image: keyteki-node
+    ports:
+      - '127.0.0.1:9500:9500'
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-keyteki}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changemeplease}
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres:/data/postgres
+      - ./server/db/schema:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+  redis:
+    image: 'redis:alpine'
+    command: redis-server
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis_data:/var/lib/redis
+      - redis_conf:/usr/local/etc/redis
+    environment:
+      - REDIS_REPLICATION_MODE=master
+volumes:
+  postgres:
+  redis_data:
+  redis_conf:

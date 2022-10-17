@@ -1,0 +1,10 @@
+FROM node:12
+RUN mkdir -p /app
+WORKDIR /app
+COPY . /app
+RUN npm install --no-optional
+RUN npm run build
+RUN rm -rf public
+ENV NODE_ENV=production
+ENV PORT=4000
+CMD ["node", "."]
