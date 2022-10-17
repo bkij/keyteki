@@ -398,7 +398,9 @@ class DeckService {
 
         let response = await this.insertDeck(newDeck, deckPods, user);
 
-        return this.getById(response.id);
+        const deck = await this.getById(response.id);
+        deck.podEnhancements = newDeck.podEnhancements;
+        return deck;
     }
 
     async checkValidDeckExpansion(deck) {
@@ -622,7 +624,7 @@ class DeckService {
         }
     }
 
-    countEnhancements(list, deckCards) {
+    countEnhancements(list, deckCards, podHouse) {
         const cards = list.map((c) => deckCards.find((x) => x.id === c)).filter(Boolean);
         const enhancementRegex = /Enhance (.+?)\./;
         const EnhancementLookup = {
@@ -636,21 +638,35 @@ class DeckService {
             '\uf360': 'amber'
         };
 
-        let enhancements = {};
+        let enhancements = {
+            list: {},
+            totalCount: 0,
+            enhancedCardsInDeck: 0,
+            podEnhancedCount: 0
+        };
 
-        for (let card of cards.filter((c) => c.card_text.includes('Enhance'))) {
-            let matches = card.card_text.match(enhancementRegex);
-            if (!matches || matches.length === 1) {
-                continue;
+        for (let card of cards) {
+            if (card.card_text.includes('Enhance')) {
+                let matches = card.card_text.match(enhancementRegex);
+                if (!matches || matches.length === 1) {
+                    continue;
+                }
+
+                let enhancementString = matches[1];
+                for (let char of enhancementString) {
+                    let enhancement = EnhancementLookup[char];
+                    if (enhancement) {
+                        enhancements.list[enhancement] = enhancements.list[enhancement]
+                            ? enhancements.list[enhancement] + 1
+                            : 1;
+                        enhancements.totalCount += 1;
+                    }
+                }
             }
-
-            let enhancementString = matches[1];
-            for (let char of enhancementString) {
-                let enhancement = EnhancementLookup[char];
-                if (enhancement) {
-                    enhancements[enhancement] = enhancements[enhancement]
-                        ? enhancements[enhancement] + 1
-                        : 1;
+            if (card.is_enhanced) {
+                enhancements.enhancedCardsInDeck += 1;
+                if (this.normalizeHouseName(card.house) === podHouse) {
+                    enhancements.podEnhancedCount += 1;
                 }
             }
         }
@@ -715,12 +731,19 @@ class DeckService {
             )
         );
 
-        // let enhancements = {};
+        let enhancements = {};
 
-        // TODO: enhancements per pod
-        // if (deckCards.some((card) => card.is_enhanced)) {
-        //     enhancements = this.countEnhancements(allCardsIds, deckCards);
-        // }
+        if (deckCards.some((card) => card.is_enhanced)) {
+            Object.values(deckPods).forEach((deckData) => {
+                deckData.houses.forEach((house) => {
+                    enhancements[house] = this.countEnhancements(
+                        deckData.data.data._links.cards,
+                        deckData.data._linked.cards.filter((c) => !c.is_non_deck),
+                        house
+                    );
+                });
+            });
+        }
         let cards = deckCards.map((card) => {
             let id = card.card_title
                 .toLowerCase()
@@ -752,9 +775,9 @@ class DeckService {
                 };
             }
 
-            // if (card.is_enhanced) {
-            //     retCard.enhancements = [];
-            // }
+            if (card.is_enhanced) {
+                retCard.enhancements = [];
+            }
 
             if (card.card_type === 'Creature2') {
                 retCard.id += '2';
@@ -775,23 +798,23 @@ class DeckService {
             return retCard;
         });
 
-        // TODO: enhancements per pod
-        // let toAdd = [];
-        // for (let card of cards) {
-        //     if (card.enhancements && card.count > 1) {
-        //         for (let i = 0; i < card.count - 1; i++) {
-        //             let cardToAdd = Object.assign({}, card);
-        //
-        //             cardToAdd.count = 1;
-        //             toAdd.push(cardToAdd);
-        //         }
-        //
-        //         card.count = 1;
-        //     }
-        // }
-        //
-        // cards = cards.concat(toAdd);
+        let toAdd = [];
+        for (let card of cards) {
+            if (card.enhancements && card.count > 1) {
+                for (let i = 0; i < card.count - 1; i++) {
+                    let cardToAdd = Object.assign({}, card);
 
+                    cardToAdd.count = 1;
+                    toAdd.push(cardToAdd);
+                }
+
+                card.count = 1;
+            }
+        }
+
+        cards = cards.concat(toAdd);
+
+        // TODO:
         // if (cards.some((card) => card.enhancements)) {
         //     cards = this.assignEnhancements(cards, enhancements);
         // }
@@ -813,6 +836,19 @@ class DeckService {
             return undefined;
         }
 
+        const podEnhancements = deckHouses.reduce(
+            (obj, house) => Object.assign(obj, { [house]: {} }),
+            {}
+        );
+        deckHouses.forEach((house) => {
+            const houseEnhancements = enhancements[house];
+            podEnhancements[house].list = houseEnhancements.list;
+            podEnhancements[house].distributableCount =
+                houseEnhancements.totalCount -
+                houseEnhancements.enhancedCardsInDeck +
+                houseEnhancements.podEnhancedCount;
+        });
+
         return {
             expansion: expansion,
             username: username,
@@ -826,7 +862,8 @@ class DeckService {
                 ),
             houses: deckHouses,
             cards: cards,
-            lastUpdated: new Date()
+            lastUpdated: new Date(),
+            podEnhancements
         };
     }
 

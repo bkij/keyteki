@@ -24,17 +24,6 @@ const EnhancementImages = {
     damage: DamageImage
 };
 
-const EnhancementLookup = {
-    P: 'capture',
-    D: 'damage',
-    R: 'draw',
-    A: 'amber',
-    '\uf565': 'capture',
-    '\uf361': 'damage',
-    '\uf36e': 'draw',
-    '\uf360': 'amber'
-};
-
 const Enhancements = () => {
     const { t, i18n } = useTranslation();
     const selectedDeck = useSelector((state) => state.cards.selectedDeck);
@@ -71,31 +60,20 @@ const Enhancements = () => {
         );
     }
 
-    const enhancementRegex = /Enhance (.+?)\./;
-
-    let enhancements = {};
+    let enhancements = Object.values(selectedDeck.podEnhancements)
+        .map((pod) => pod.list)
+        .reduce((totalEnhancements, podEnhancements) => {
+            Object.entries(podEnhancements).forEach(([enhancement, count]) => {
+                if (!totalEnhancements[enhancement]) {
+                    totalEnhancements[enhancement] = count;
+                } else {
+                    totalEnhancements[enhancement] += count;
+                }
+            });
+            return totalEnhancements;
+        }, {});
     let totalEnhancements = 0;
     let totalUsed = 0;
-
-    for (let deckCard of selectedDeck.cards.filter((c) => c.card.text?.includes('Enhance'))) {
-        let matches = deckCard.card.text.match(enhancementRegex);
-        if (!matches || matches.length === 1) {
-            continue;
-        }
-
-        let enhancementString = matches[1];
-        for (let char of enhancementString) {
-            let enhancement = EnhancementLookup[char];
-            if (enhancement) {
-                for (let i = 0; i < deckCard.count; i++) {
-                    enhancements[enhancement] = enhancements[enhancement]
-                        ? enhancements[enhancement] + 1
-                        : 1;
-                    totalEnhancements++;
-                }
-            }
-        }
-    }
 
     let usedEnhancements = {};
     for (const card of Object.values(enhancedCards)) {
