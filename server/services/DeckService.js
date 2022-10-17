@@ -10,6 +10,19 @@ class DeckService {
         this.houseCache = {};
     }
 
+    // pods shape { "1234-abcd": { houses: ["brobnar", "dis"] }, "432abcd": { houses: ["logos"] } }
+    podsHousesValid(pods) {
+        const allHouses = [];
+        Object.values(pods).forEach((pod) => {
+            if (!pod.houses) return false;
+            if (pod.houses.length === 0) return false;
+            allHouses.push(...pod.houses);
+        });
+        if (allHouses.length !== 3) return false;
+        if (new Set(allHouses).size !== allHouses.length) return false;
+        return true;
+    }
+
     async getHouseIdFromName(house) {
         if (this.houseCache[house]) {
             return this.houseCache[house];
@@ -362,7 +375,12 @@ class DeckService {
 
     // deckPods shape { "1234-abcd": { houses: ["brobnar", "dis"], data: {...} }, "432abcd": { houses: ["logos"], data: {...} } }
     async create(user, deckPods) {
-        let newDeck = this.parseDeckResponse(user.username, deckPods);
+        const expansions = deckPods.map((deckData) => deckData['data']['expansion']);
+        if (new Set(expansions).size !== 1) {
+            throw new Error('Multiple expansions.');
+        }
+
+        let newDeck = this.parseDeckResponse(user.username, deckPods, expansions[0]);
 
         let validExpansion = await this.checkValidDeckExpansion(newDeck);
         if (!validExpansion) {
@@ -665,7 +683,7 @@ class DeckService {
     }
 
     // deckPods shape { "1234-abcd": { houses: ["brobnar", "dis"], data: {...} }, "432abcd": { houses: ["logos"], data: {...} } }
-    parseDeckResponse(username, deckPods) {
+    parseDeckResponse(username, deckPods, expansion) {
         let specialCards = {
             479: { 'dark-æmber-vault': true, 'it-s-coming': true }
         };
@@ -792,7 +810,7 @@ class DeckService {
         }
 
         return {
-            expansion: 435, // Call of the Alliances
+            expansion: expansion,
             username: username,
             uuid: uuid,
             identity: uuid,
@@ -833,6 +851,7 @@ class DeckService {
             if (dbDeck && dbDeck.length > 0) return JSON.parse(dbDeck[0].ApiData);
         } catch (err) {
             logger.error(err);
+            // TODO: does this go through to client
             throw new Error('Db error');
         }
 

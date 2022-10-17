@@ -92,26 +92,27 @@ module.exports.init = function (server) {
         })
     );
     server.get(
-        '/api/decks/podData/:id',
+        '/api/source-decks',
         passport.authenticate('jwt', { session: false }),
         wrapAsync(async function (req, res) {
-            if (!req.params.id || req.params.id === '') {
-                return res.status(404).send({ message: 'No such deck' });
+            if (!req.query.deckIds || req.query.deckIds.length !== 3) {
+                return res.status(404).send({ message: 'Invalid request' }); // TODO
             }
 
-            let deck = await deckService.getDeckDataAndSave(req.params.id);
-
-            if (!deck) {
-                return res.status(404).send({ message: 'No such deck' });
+            const decks = await Promise.all(
+                req.query.deckIds.map((deckId) => deckService.getDeckDataAndSave(deckId))
+            );
+            if (new Set(decks.map((deck) => deck.data.expansion)).size !== 1) {
+                return res.status(400).send({ message: 'Multiple sets' }); // TODO
             }
 
-            const deckResponse = {
+            const deckResponses = decks.map((deck) => ({
                 id: deck.data.id,
                 name: deck.data.name,
                 houses: deck._linked.houses.map((house) => house.id.toLowerCase().replace(' ', '')) // TODO: util
-            };
+            }));
 
-            res.send({ success: true, deck: deckResponse });
+            res.send({ success: true, decks: deckResponses });
         })
     );
 
@@ -120,15 +121,15 @@ module.exports.init = function (server) {
         '/api/decks',
         passport.authenticate('jwt', { session: false }),
         wrapAsync(async function (req, res) {
-            if (!req.body.pods || !Object.keys(req.body.pods).length) {
+            if (!req.body.pods || !deckService.podsHousesValid(req.body.pods)) {
                 return res.send({ success: false, message: 'invalid request' });
             }
 
-            // TODO: more pods validation
             const deckPods = Object.assign({}, req.body.pods);
             const decksData = await Promise.all(
                 Object.keys(req.body.pods).map((deckId) => deckService.getDeckDataAndSave(deckId))
             );
+
             decksData.forEach((deckData) => {
                 deckPods[deckData['data']['id']]['data'] = deckData;
             });
